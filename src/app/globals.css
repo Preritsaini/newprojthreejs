@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Outfit:wght@300;400;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #fcf9f2; /* Soft Warm Beige */
+  --foreground: #4c2c36; /* Warm Rose/Plum text */
+  --primary-glow: radial-gradient(rgba(244, 63, 94, 0.1), rgba(0, 0, 0, 0));
+  --secondary-glow: linear-gradient(
+    to bottom right,
+    rgba(244, 63, 94, 0),
+    rgba(244, 63, 94, 0.05),
+    rgba(244, 63, 94, 0.15)
+  );
+
+  --font-romantic: 'Dancing Script', cursive;
+  --font-outfit: 'Outfit', sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-outfit);
+  overflow-x: hidden;
+}
+
+/* Light Glassmorphism utility */
+.glass-panel {
+  background: rgba(255, 252, 246, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(244, 63, 94, 0.12);
+  box-shadow: 0 8px 32px 0 rgba(190, 24, 74, 0.05);
+}
+
+.glass-panel-heavy {
+  background: rgba(255, 254, 251, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+  box-shadow: 0 12px 40px 0 rgba(244, 63, 94, 0.08);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(252, 249, 242, 0.9);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(244, 63, 94, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(244, 63, 94, 0.4);
+}
+
+/* Text glow effects tailored for light themes */
+.glow-text-pink {
+  text-shadow: 0 0 8px rgba(244, 63, 94, 0.25), 0 0 15px rgba(244, 63, 94, 0.15);
+}
+
+.glow-text-purple {
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.25), 0 0 15px rgba(168, 85, 247, 0.15);
+}
+
+/* Custom font styles helper */
+.font-romantic {
+  font-family: var(--font-romantic);
+}
+
+/* Background Gradients */
+.bg-glow-main {
+  background: 
+    radial-gradient(circle at 10% 20%, rgba(244, 63, 94, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 45%),
+    var(--background);
+}
+
+/* Animations */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-80vh) translateX(var(--translate-x, 30px)) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.animate-confetti {
+  animation: confetti-fall 2.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
