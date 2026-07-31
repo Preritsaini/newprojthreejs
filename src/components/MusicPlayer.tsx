@@ -2,6 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 
+declare global {
+  interface Window {
+    onYouTubeIframeAPIReady?: () => void;
+    YT?: any;
+  }
+}
+
 interface MusicPlayerProps {
   songTitle?: string;
   artist?: string;
@@ -12,34 +19,116 @@ export default function MusicPlayer({
   artist = "Stephen Sanchez",
 }: MusicPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [useYoutube, setUseYoutube] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const ytPlayerRef = useRef<any>(null);
+  const isYtReadyRef = useRef<boolean>(false);
 
   // Synchronize audio volume
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
     }
+    if (ytPlayerRef.current && ytPlayerRef.current.setVolume) {
+      try {
+        ytPlayerRef.current.setVolume(Math.round(volume * 100));
+      } catch (e) {
+        // ignore
+      }
+    }
   }, [volume]);
 
-  const sendYtCommand = (command: string) => {
-    if (ytIframeRef.current && ytIframeRef.current.contentWindow) {
-      ytIframeRef.current.contentWindow.postMessage(
-        JSON.stringify({
-          event: "command",
-          func: command,
-          args: [],
-        }),
-        "*"
-      );
-    }
-  };
+  // Initialize YouTube IFrame API safely for production hosting
+  useEffect(() => {
+    let isMounted = true;
 
-  const startPlayback = () => {
-    if (!useYoutube && audioRef.current) {
+    const initPlayer = () => {
+      if (!isMounted) return;
+      try {
+        ytPlayerRef.current = new window.YT.Player("yt-player-element", {
+          height: "1",
+          width: "1",
+          videoId: "GxldQ9eX2wo", // 'Until I Found You' - Stephen Sanchez
+          playerVars: {
+            autoplay: 1,
+            loop: 1,
+            playlist: "GxldQ9eX2wo",
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            origin: typeof window !== "undefined" ? window.location.origin : "",
+          },
+          events: {
+            onReady: (event: any) => {
+              isYtReadyRef.current = true;
+              event.target.setVolume(Math.round(volume * 100));
+              // Attempt play
+              event.target.playVideo();
+            },
+            onStateChange: (event: any) => {
+              // 1 = PLAYING
+              if (event.data === 1) {
+                setIsPlaying(true);
+                setAutoplayBlocked(false);
+              }
+            },
+          },
+        });
+      } catch (err) {
+        console.log("YouTube Player init error, using HTML5 audio fallback", err);
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      if (!window.YT) {
+        const tag = document.createElement("script");
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName("script")[0];
+        if (firstScriptTag && firstScriptTag.parentNode) {
+          firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        } else {
+          document.head.appendChild(tag);
+        }
+
+        window.onYouTubeIframeAPIReady = () => {
+          initPlayer();
+        };
+      } else if (window.YT && window.YT.Player) {
+        initPlayer();
+      }
+    }
+
+    return () => {
+      isMounted = false;
+      if (ytPlayerRef.current && ytPlayerRef.current.destroy) {
+        try {
+          ytPlayerRef.current.destroy();
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
+  }, []);
+
+  const playMusic = () => {
+    let started = false;
+
+    // 1. Try YouTube Player first
+    if (ytPlayerRef.current && isYtReadyRef.current) {
+      try {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+        setAutoplayBlocked(false);
+        started = true;
+      } catch (e) {
+        console.log("YouTube play error:", e);
+      }
+    }
+
+    // 2. Try HTML5 Audio element fallback if YT isn't ready
+    if (!started && audioRef.current) {
       audioRef.current
         .play()
         .then(() => {
@@ -47,43 +136,41 @@ export default function MusicPlayer({
           setAutoplayBlocked(false);
         })
         .catch((err) => {
-          console.log("Autoplay blocked by browser policy, waiting for first user interaction.", err);
+          console.log("Autoplay blocked by browser policy, waiting for tap", err);
           setAutoplayBlocked(true);
         });
-    } else {
-      setIsPlaying(true);
-      setAutoplayBlocked(false);
-      sendYtCommand("playVideo");
     }
+  };
+
+  const pauseMusic = () => {
+    if (ytPlayerRef.current && ytPlayerRef.current.pauseVideo) {
+      try {
+        ytPlayerRef.current.pauseVideo();
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    setIsPlaying(false);
   };
 
   const togglePlay = () => {
     if (isPlaying) {
-      if (!useYoutube && audioRef.current) {
-        audioRef.current.pause();
-      } else {
-        sendYtCommand("pauseVideo");
-      }
-      setIsPlaying(false);
+      pauseMusic();
     } else {
-      startPlayback();
+      playMusic();
     }
   };
 
-  // Attempt instant autoplay on mount + Listen for ANY user interaction on the webpage
+  // Listen for ANY first user click/touch anywhere on screen to trigger music on hosted sites
   useEffect(() => {
-    // Attempt instant autoplay on mount
-    startPlayback();
+    // Attempt instant start on mount
+    playMusic();
 
     const handleFirstInteraction = () => {
-      if (!isPlaying) {
-        startPlayback();
-      }
-      // Remove listeners once playback has successfully started or attempted
-      window.removeEventListener("click", handleFirstInteraction);
-      window.removeEventListener("touchstart", handleFirstInteraction);
-      window.removeEventListener("pointerdown", handleFirstInteraction);
-      window.removeEventListener("keydown", handleFirstInteraction);
+      playMusic();
     };
 
     window.addEventListener("click", handleFirstInteraction);
@@ -97,34 +184,23 @@ export default function MusicPlayer({
       window.removeEventListener("pointerdown", handleFirstInteraction);
       window.removeEventListener("keydown", handleFirstInteraction);
     };
-  }, [useYoutube, isPlaying]);
-
-  const handleAudioError = () => {
-    console.log("Local audio source not found or blocked. Switching to YouTube audio stream for Until I Found You.");
-    setUseYoutube(true);
-  };
+  }, []);
 
   return (
     <div className="fixed top-4 right-4 z-40 flex flex-col items-end gap-2 pointer-events-auto">
-      {/* HTML5 Audio element */}
+      {/* HTML5 Backup Audio element */}
       <audio
         ref={audioRef}
         id="love-song"
         loop
         preload="auto"
-        src="/music/until-i-found-you.mp3"
-        onError={handleAudioError}
+        src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
       />
 
-      {/* Hidden YouTube player iframe for Until I Found You by Stephen Sanchez (ID: GxldQ9eX2wo) */}
-      <iframe
-        ref={ytIframeRef}
-        id="yt-love-song"
-        className="hidden w-0 h-0 opacity-0 pointer-events-none"
-        src="https://www.youtube-nocookie.com/embed/GxldQ9eX2wo?enablejsapi=1&autoplay=1&loop=1&playlist=GxldQ9eX2wo&controls=0"
-        allow="autoplay"
-        title="Until I Found You - Stephen Sanchez Audio"
-      />
+      {/* Offscreen YouTube iframe container (Not display:none, so browser decodes audio properly on hosting) */}
+      <div className="fixed -bottom-96 -right-96 w-1 h-1 opacity-0 pointer-events-none overflow-hidden">
+        <div id="yt-player-element" />
+      </div>
 
       {/* Glassmorphic Music Player Controls */}
       <div className="glass-panel px-3 py-2 rounded-full flex items-center gap-3 shadow-lg border border-pink-500/20 backdrop-blur-md bg-white/40 hover:bg-white/60 transition-all duration-300">
